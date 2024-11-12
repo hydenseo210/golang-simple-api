@@ -1,0 +1,126 @@
+Resources:
+  MyAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      AvailabilityZones:
+        - ap-southeast-2a
+        - ap-southeast-2b
+      LaunchConfigurationName: { "Ref": "MyLaunchConfiguration" }
+      MinSize: 1
+      MaxSize: 3
+      DesiredCapacity: 2
+      LoadBalancerNames: ["MyLoadBalancer"]
+      TargetGroupARNs: ["MyTargetGroup"]
+
+  MyTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: hyden-api-target-group
+      Port: 80
+      Protocol: HTTP
+      TargetType: instance
+      VpcId: vpc-35affc52
+      HealthCheckIntervalSeconds: 30
+      HealthCheckPath: /health-check
+
+  MyLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: hyden-api-load-balancer
+      Scheme: internet-facing
+      Subnets:
+        - subnet-c0caf1a7
+        - subnet-51003418 
+      Type: application
+      SecurityGroups:
+        - sg-085324c39c4164705
+        - sg-096a2dce6cae5be96
+      Tags:
+        - Key: Name
+          Value: hyden-api-load-balancer
+
+  MyListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward 
+          TargetGroupArn: !Ref MyTargetGroup
+      LoadBalancerArn: !Ref MyLoadBalancer
+      Port: 80
+      Protocol: HTTP
+
+  MyLaunchConfiguration:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      ImageId: ami-0f6ad051716c81af1
+      InstanceType: t2.micro
+      KeyName: hydengoapi
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+  
+          sudo yum update -y
+          sudo yum install -y docker
+          sudo service docker start
+          
+          aws ecr get-login-password --region ap-southeast-2 
+          
+          docker login --username AWS --password-stdin 163145692369.dkr.ecr.ap-southeast-2.amazonaws.com
+          
+          docker run -d \$163145692369.dkr.ecr.ap-southeast-2.amazonaws.com/hyden-simple-api:latest
+
+          echo "Docker container from Hyden's ECR started" >> /var/log/user-data.log
+      SecurityGroups:
+        - sg-085324c39c4164705
+        - sg-096a2dce6cae5be96
+      IamInstanceProfile: { "Ref": "MyProfile" }
+
+  MyProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: "/"
+      Roles: 
+        - 
+          Ref: "MyRole"
+  MyRole: 
+    Type: "AWS::IAM::Role"
+    Properties: 
+      RoleName : "Hyden-api-role"
+      AssumeRolePolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+          - Effect: "Allow"
+            Principal: 
+              Service: 
+                - "ec2.amazonaws.com"
+            Action: 
+              - "sts:AssumeRole"
+      Path: "/"
+
+  RolePolicies: 
+    Type: "AWS::IAM::Policy"
+    Properties: 
+      PolicyName: "hyden-api-policy"
+      PolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+          - Effect: "Allow"
+            Action: 
+              - "s3:ListAccessPointsForObjectLambda"
+              - "ecr-public:GetAuthorizationToken"
+              - "s3:ListBucketMultipartUploads"
+              - "s3:ListAccessPoints"
+              - "s3:ListJobs"
+              - "s3:ListBucketVersions"
+              - "ecr:GetDownloadUrlForLayer"
+              - "ecr:GetAuthorizationToken"
+              - "s3:ListBucket"
+              - "s3:ListMultiRegionAccessPoints"
+              - "s3:ListMultipartUploadParts"
+              - "s3:ListStorageLensConfigurations"
+              - "s3:ListAllMyBuckets"
+              - "ecr:BatchGetImage"
+              - "sts:GetServiceBearerToken"
+            Resource: "*"
+      Roles: 
+        - Ref: "MyRole"

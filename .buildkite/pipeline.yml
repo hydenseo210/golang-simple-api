@@ -1,0 +1,20 @@
+---
+steps:
+  - label: 'Unit test && lint'
+    command: make test
+    plugins:
+      - ecr#v2.5.0:
+          login: true
+          region: "ap-southeast-2"
+      - golang#v2.0.0:
+          version: 1.21.7
+    agents:
+      queue: kepler-lab
+  - label: 'Push Image to ECR'
+    command: 'scripts/build-and-push.sh'
+    plugins:
+      - ecr#v2.5.0:
+          login: true
+          region: "ap-southeast-2"
+    agents:
+      queue: kepler-lab
